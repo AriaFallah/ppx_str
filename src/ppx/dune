@@ -2,5 +2,5 @@
  (name ppx_str)
  (public_name ppx_str)
  (kind ppx_rewriter)
- (libraries ppxlib)
+ (libraries ppxlib str_parser)
  (preprocess (pps ppxlib.metaquot)))

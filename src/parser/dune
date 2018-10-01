@@ -1,0 +1,5 @@
+(library
+ (name str_parser)
+ (public_name ppx_str.parser)
+ (inline_tests)
+ (preprocess (pps ppx_inline_test)))
