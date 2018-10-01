@@ -5,55 +5,90 @@ exception Parse_error of string
 type tstr =
   | TStr of string
   | TVar of string
+type parse_state =
+  | InString
+  | InCurly of int
 
-let not_curly = [%sedlex.regexp? Compl ('{' | '}')]
+let parse_str str =
+  let len = String.length str in
+  let buf = Buffer.create 500 in
 
-let lex_str str =
-  let rec lexer lst lexbuf =
-    match%sedlex lexbuf with
-    | Opt (Plus not_curly), Opt ("\\{" | "\\}")  ->
-      let buf = Sedlexing.Utf8.lexeme lexbuf in
-      let buf = Str.global_replace (Str.regexp {|\\{|}) "{" buf in
-      let buf = Str.global_replace (Str.regexp {|\\}|}) "}" buf in
-      lexbuf |> lexer (TStr buf :: lst)
-    | "{", Plus not_curly , "}" ->
-      let buf = Sedlexing.Utf8.lexeme lexbuf in
-      lexbuf |> lexer (TVar buf :: lst)
-    | eof ->
-      lst
-    | "{}" ->
-      raise (Parse_error "No expression inside curly braces")
-    | "{", Plus (Compl '}'), eof ->
-      raise (Parse_error "Missing closing }")
-    | Plus (Compl '{'), "}" ->
-      raise (Parse_error "Missing opening {")
-    | _ ->
-      raise (Parse_error "Unexpected pattern")
-  in 
-  str 
-    |> Sedlexing.Utf8.from_string
-    |> lexer []
-    |> List.fold_left (fun lst y ->
-      match lst with
-      | [] -> [y]
-      | (x::xs) -> (
-        match x, y with
-        | TStr x, TStr y ->
-          (TStr (String.concat "" [y; x])) :: xs
+  let add c = Buffer.add_char buf c in
+  let contents () =
+    let s = Buffer.contents buf in
+    Buffer.clear buf;
+    s
+  in
+
+  let rec parser ~i ~state ~lst str =
+    if i == len then
+      if Buffer.length buf == 0 then
+        lst
+      else
+        match state with
+        | InString ->
+          let s = TStr (contents ()) in
+          s :: lst
+        | InCurly _ ->
+          raise (Parse_error "Missing closing }")
+    else
+      let c = str.[i] in
+      match state with
+      | InString ->
+          if i >= len - 1 then
+            if c == '{' then
+              raise (Parse_error "Missing closing }")
+            else (
+              add c;
+              str |> parser ~i:(i + 1) ~state:InString ~lst
+            )
+          else
+            let c2 = str.[i + 1] in (
+            match c, c2 with
+            | '}', _ ->
+              raise (Parse_error "Missing opening {")
+            | '\\', ('{' | '}') ->
+              add c2;
+              str |> parser ~i:(i + 2) ~state:InString ~lst
+            | '{', _ ->
+              let s = TStr (contents ()) in
+              str |> parser ~i:(i + 1) ~state:(InCurly 0) ~lst:(s :: lst)
+            | _ ->
+              add c;
+              str |> parser ~i:(i + 1) ~state:InString ~lst
+            )
+      | InCurly n ->
+        
+        match c with
+        | '{' ->
+          add c;
+          str |> parser ~i:(i + 1) ~state:(InCurly (n + 1)) ~lst
+        | '}' ->
+          if n == 0 then (
+            let s = TVar (contents ()) in
+            str |> parser ~i:(i + 1) ~state:InString ~lst:(s :: lst)
+          )
+          else (
+            add c;
+            str |> parser ~i:(i + 1) ~state:(InCurly (n - 1)) ~lst
+          )
         | _ ->
-          y :: x :: xs
-      )
-    ) []
+          add c;
+          str |> parser ~i:(i + 1) ~state:(InCurly n) ~lst
+    in
+  str
+    |> parser ~i:0 ~state:InString ~lst:[]
+    |> List.rev
 
 let expand ~loc ~path:_ str =
   let lst = str
-    |> lex_str
+    |> parse_str
     |> List.map (fun t ->
       match t with
       | TStr s ->
         estring ~loc s
       | TVar v ->
-        String.sub v 1 ((String.length v) - 2)
+        v
           |> Lexing.from_string
           |> Parse.expression
     )
