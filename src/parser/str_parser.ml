@@ -2,12 +2,14 @@ type tstr =
   | TStr of string
   | TVar of string
 type parse_state =
+  | Start
   | InString
   | InCurly of int
 type parse_error =
   | NO_EXPRESSION
   | NO_OPENING
   | NO_CLOSING
+  | EMPTY_STR
 
 exception Parse_error of int * parse_error
 
@@ -19,6 +21,7 @@ let () =
         | NO_EXPRESSION -> "{} has no expression inside"
         | NO_OPENING -> "Missing opening {"
         | NO_CLOSING -> "Missing closing }"
+        | EMPTY_STR -> "You passed an empty string"
         in
         Some (s ^ " at character " ^ (string_of_int i))
       | _ -> None 
@@ -38,19 +41,25 @@ let parse_str str =
   let rec parser ~i ~state ~lst str =
     if i = len then
       match state with
+      | Start ->
+        raise (Parse_error (0, EMPTY_STR))
       | InString ->
-        if Buffer.length buf = 0 then
-          lst
-        else
-          let s = TStr (contents ()) in
-          s :: lst
+          if Buffer.length buf = 0 then
+            lst
+          else
+            (TStr (contents ()) :: lst)
       | InCurly _ ->
         raise (Parse_error (i, NO_CLOSING))
     else
       let c = str.[i] in
       match state with
+      | Start ->
+        if c == '{' then
+          str |> parser ~i:(i + 1) ~state:(InCurly 0) ~lst
+        else
+          str |> parser ~i ~state:InString ~lst
       | InString ->
-          if i >= len - 1 then
+          if i = len - 1 then
             match c with
             | '{' ->
               raise (Parse_error (i, NO_CLOSING))
@@ -95,7 +104,7 @@ let parse_str str =
           str |> parser ~i:(i + 1) ~state:(InCurly n) ~lst
     in
   str
-    |> parser ~i:0 ~state:InString ~lst:[]
+    |> parser ~i:0 ~state:Start ~lst:[]
     |> List.rev
 
 let%test _ = 
@@ -118,6 +127,9 @@ let%test _ =
     TVar "some_func {a=1; b=2;}";
     TStr " you're {great!}";
   ]
+
+let%test _ = parse_str "a" = [TStr "a"]
+let%test _ = parse_str "{a}" = [TVar "a"]
 
 let%test _ = 
   try 
@@ -148,3 +160,21 @@ let%test _ =
     ignore (parse_str "Hi {name}}");
     false
   with Parse_error (_, NO_OPENING) -> true
+
+let%test _ = 
+  try 
+    ignore (parse_str "{");
+    false
+  with Parse_error (_, NO_CLOSING) -> true
+
+let%test _ = 
+  try 
+    ignore (parse_str "}");
+    false
+  with Parse_error (_, NO_OPENING) -> true
+
+let%test _ = 
+  try 
+    ignore (parse_str "");
+    false
+  with Parse_error (_, EMPTY_STR) -> true
