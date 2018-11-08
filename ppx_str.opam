@@ -2,10 +2,10 @@ opam-version: "2.0"
 maintainer: "Aria Fallah"
 authors: ["Aria Fallah"]
 homepage: "https://github.com/AriaFallah/ppx_str/"
-license: "PROP"
+license: "MIT"
 bug-reports: "https://github.com/AriaFallah/ppx_str/issues"
 synopsis: "PPX for template strings"
-tags: ["ppx" "ppx_str"]
+tags: ["ppx" "text"]
 
 depends: [
   "ppxlib"
