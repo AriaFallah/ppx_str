@@ -16,3 +16,4 @@ depends: [
 
 build: [
   [ "jbuilder" "build" "-p" name "-j" jobs "@install" ]
+]
