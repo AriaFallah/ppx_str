@@ -8,6 +8,10 @@ synopsis: "PPX for template strings"
 tags: ["ppx" "text"]
 
 depends: [
+  "dune" {build}
   "ppxlib"
   "ppx_inline_test"
 ]
+
+build: [
+  [ "jbuilder" "build" "-p" name "-j" jobs "@install" ]
