@@ -8,6 +8,7 @@ synopsis: "PPX for template strings"
 tags: ["ppx" "text"]
 
 depends: [
+  "ocaml" {>= "4.03"}
   "dune" {build}
   "ppxlib"
   "ppx_inline_test"
